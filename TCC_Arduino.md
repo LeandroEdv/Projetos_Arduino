@@ -1,4 +1,3 @@
-# Projetos_Arduino
 // ----------- INICIALIZAÇÃO DO SENSOR ULTRASÔNICO ----------
 
 #include "Ultrasonic.h" // BIBLIOTECA
@@ -17,7 +16,7 @@ char daysOfTheWeek[7][12] = {"Domingo", "Segunda", "Terça", "Quarta", "Quinta",
 
 #include <OneWire.h>
 #include <DallasTemperature.h>
-#define DS18B20 2 //DEFINE O PINO DIGITAL UTILIZADO PELO SENSOR
+#define DS18B20 12 //DEFINE O PINO DIGITAL UTILIZADO PELO SENSOR
 OneWire ourWire(DS18B20); //CONFIGURA UMA INSTÂNCIA ONEWIRE PARA SE COMUNICAR COM O SENSOR
 DallasTemperature sensors(&ourWire); //BIBLIOTECA DallasTemperature UTILIZA A OneWire
 
@@ -27,13 +26,13 @@ DallasTemperature sensors(&ourWire); //BIBLIOTECA DallasTemperature UTILIZA A On
 
 //------------- INICIALIZA OS PIN-----------------------------
 
+#define refrig 8
 #define bomba 7
 #define luminaria 6
-#define refrig 5
 
-#define led_nivel_alto 9
-#define led_nivel_baixo 8
-#define led_nivel_critico 12
+#define led_nivel_alto 2
+#define led_nivel_baixo 3
+#define led_nivel_critico 4
 
 //-------------- VARIÁVEIS -----------------------------------
 
@@ -101,7 +100,7 @@ void start(){
   
   }
 
-  // =================== INICIALIZAÇÃO RTC =======================
+  // =================== INICIALIZAÇÃO RTC ==========================
   
   void strt_rtc(){
 
@@ -112,10 +111,10 @@ void start(){
     if (! rtc.isrunning()) { 
       Serial.println("DS1307 rodando!");
       //rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); 
-      //rtc.adjust(DateTime(2018, 7, 5, 15, 33, 15)); //(ANO), (MÊS), (DIA), (HORA), (MINUTOS), (SEGUNDOS)
+      //rtc.adjust(DateTime(2022, 5, 12, 12, 41, 15)); //(ANO), (MÊS), (DIA), (HORA), (MINUTOS), (SEGUNDOS)
   }
     }
-// ======================= VERIFICAÇÃO DE NÍVEL ===============
+// ======================== VERIFICAÇÃO DE NÍVEL =======================
 
   void ultrasonic_sen(){
     
@@ -131,34 +130,37 @@ void start(){
   void check_ultra_sen(){
     
     if (now.unixtime() >= (ref_tempo_ultra.unixtime() + tempo_leitura_ultra)){
+
       ultrasonic_sen();
       Serial.println("lendo o nível da água ");
       if (distancia <= nivel_alto){
         // led que indica nivel alto  
         digitalWrite(led_nivel_alto, HIGH);
         digitalWrite(led_nivel_baixo, LOW);
+        digitalWrite(led_nivel_critico, LOW);
         }
        if (distancia > nivel_alto && distancia < nivel_baixo){
           // led indica nivel baixo
           digitalWrite(led_nivel_alto, LOW);
-          digitalWrite(led_nivel_baixo, LOW);
+          digitalWrite(led_nivel_baixo, HIGH);
+          digitalWrite(led_nivel_critico, LOW);
         }
        if (distancia > nivel_baixo){
-        // NIVEL CRITICO
-        //digitalWrite(bomba, LOW); 
-        flag_bomba_ligada = false; // <-------------SE O NIVEL FOR BAIXO PARA A BOMBA ------------------<<<<<<<<<<
+        // NIVEL CRITICO 
+        flag_bomba_ligada = false; // <-------SE O NIVEL FOR BAIXO PARA A BOMBA ----
         digitalWrite(led_nivel_alto, LOW);
-        digitalWrite(led_nivel_baixo, HIGH);
+        digitalWrite(led_nivel_baixo, LOW);
+        digitalWrite(led_nivel_critico, HIGH);
      
           }
           ref_tempo_ultra = now;
         }
       } 
-// ================== CALCULO DE TEMPO ENTRE ACINAMENTOS DA BOMBA =================
+// ========== CALCULO DE TEMPO ENTRE ACINAMENTOS DA BOMBA ================
 
 int tempo_para_ligar(){
 
-  if (estado() == 0){
+  if (estado() == 1){
   int result;
   result = (tempo_bomba_desligada /4) + tempo_bomba_desligada;
   return result;
@@ -166,8 +168,8 @@ int tempo_para_ligar(){
     return tempo_bomba_desligada;
     }
   }
-  
-//  ==================== COMANDOS DA BOMBA ==========================
+
+//  ======================== COMANDOS DA BOMBA ===========================
   
   void comportamento_bomba(){
     
@@ -176,7 +178,7 @@ int tempo_para_ligar(){
     if (now.unixtime() >= (ref_tempo_liga.unixtime() + tempo_para_ligar()) && flag_bomba_ligada == false ){
       
       if (flag_sen == false){
-       ultrasonic_sen(); // <------- VERIFICAR O SENSOR ULTRASÔNICO ANTES DE LIGAR A BOMBA DÁ TRABALHO KKKK ----<<<<
+       ultrasonic_sen(); // <------- VERIFICAR O SENSOR ULTRASÔNICO ANTES DE LIGAR A BOMBA ----<<<<
        Serial.println("Leitura de verificação da bomba");
        flag_sen = true;
       }
@@ -184,7 +186,7 @@ int tempo_para_ligar(){
      if (distancia <= nivel_baixo){
       
       Serial.println(" Bomba ligada !");
-      flag_bomba_ligada = true; // <----- ESSE FLAG FAZ A BOMBA LIGAR ! ---<<<<<
+      flag_bomba_ligada = true; // <----- ESSE FLAG FAZ A BOMBA LIGAR! ---<<<<<
       ref_tempo_desliga = now;
       flag_sen = false; // <---- ESSE FLAG INDICA UMA LEITURA DO SENSOR ---<<<<
         }
@@ -198,7 +200,7 @@ int tempo_para_ligar(){
       }  
   }
 
-  void acionamento_bomba(){ // < ------------- comando de acionamento da bomba -------<<<<
+  void acionamento_bomba(){ // < ------- comando de acionamento da bomba ----
   
     comportamento_bomba();
     
@@ -209,7 +211,7 @@ int tempo_para_ligar(){
         }
     }
     
-  //===================== REFRIGERAÇÃO DA ÁGUA ===================
+  //========================== REFRIGERAÇÃO DA ÁGUA ==============================
 
  float sen_temperatura(){
   
@@ -257,7 +259,6 @@ int tempo_para_ligar(){
   Serial.print("Temperatura da agua: "); 
   Serial.print(temperatura_media);
   Serial.println("*C");
-
   ref_tempo_temperatura = now;
   acionamento_refrig();
     }
@@ -271,7 +272,7 @@ int tempo_para_ligar(){
         
         }
     }
-//  =============== CONTROLE DA ILUMINAÇÃO ========================
+//  ============================= CONTROLE DA ILUMINAÇÃO ============================================
 
 int estado(){
    if (now.hour() >= 5 && now.hour() < 18){
@@ -314,3 +315,4 @@ if (now.unixtime() >= (ref_tempo_lumi.unixtime() + tempo_leitura_lumi)){
   ref_tempo_lumi = now;  
  }
 }
+ 
